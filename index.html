@@ -1,0 +1,310 @@
+
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard – Treinos (Externos)</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#11161d; --muted:#8ba1b0; --text:#e6eef4;
+      --line:#1f2a36; --brand:#38bdf8;
+      --ok-bg:#0f2f26; --ok:#34d399;
+      --att-bg:#2a1f0f; --att:#fbbf24;
+      --risk-bg:#2b1313; --risk:#f87171;
+      --chip:#223040; --chip-pos-bg:#173022; --chip-pos:#34d399; --chip-pos-line:#1b533c;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; background:linear-gradient(180deg,#0b0f14, #0b0f14 60%, #0e1420); color:var(--text); font:14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial}
+    header{padding:28px 24px 8px}
+    h1{margin:0; font-size:26px; letter-spacing:.3px}
+    .sub{color:var(--muted); font-size:12px; margin-top:6px}
+    .wrap{padding:0 24px 28px}
+    .kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0}
+    .kpi{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px}
+    .kpi .label{color:var(--muted); font-size:12px}
+    .kpi .val{font-size:22px; font-weight:700; margin-top:6px}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin:18px 0}
+    label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px}
+    select, input[type="date"], input[type="text"], button{
+      background:#0c121a; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 12px; outline:none;
+    }
+    button{cursor:pointer}
+    button:hover{border-color:#2b3a4a}
+    .btn{background:#0c121a}
+    .panel{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px}
+    table{width:100%; border-collapse:collapse}
+    th, td{padding:10px 8px; border-bottom:1px solid var(--line); text-align:left}
+    thead th{position:sticky; top:0; background:var(--panel); z-index:1; font-size:12px; color:var(--muted)}
+    .status{display:inline-block; padding:2px 10px; border-radius:999px; font-weight:600}
+    .ok{background:var(--ok-bg); color:var(--ok)}
+    .att{background:var(--att-bg); color:var(--att)}
+    .risk{background:var(--risk-bg); color:var(--risk)}
+    .chip{display:inline-block; padding:2px 8px; border-radius:999px; background:var(--chip); border:1px solid var(--line); margin-right:6px; margin-bottom:6px}
+    .chip-pos{display:inline-block; padding:2px 8px; border-radius:999px; background:var(--chip-pos-bg); color:var(--chip-pos); border:1px solid var(--chip-pos-line); margin-right:6px; margin-bottom:6px}
+    a{color:var(--brand); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .drill{margin-top:14px}
+    .box{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px}
+    .insights-box{border-style:dashed}
+    .err{display:none; background:var(--risk-bg); color:var(--risk); border:1px solid #4b1a1a; padding:10px 12px; border-radius:10px; margin-top:10px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dashboard — Treinos (externos)</h1>
+    <div class="sub">Resumo por atleta (insights) + drill‑down por sessão. Base completa, sem corte de dias.</div>
+  </header>
+
+  <div class="wrap">
+    <div class="kpis" id="kpis">
+      <div class="kpi"><div class="label">Atletas</div><div class="val" id="kpiAtletas">—</div></div>
+      <div class="kpi"><div class="label">Sessões</div><div class="val" id="kpiSessoes">—</div></div>
+      <div class="kpi"><div class="label">Nota média</div><div class="val" id="kpiNota">—</div></div>
+      <div class="kpi"><div class="label">Δ Humor (depois − antes)</div><div class="val" id="kpiDelta">—</div></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>De</label><input type="date" id="startDate"/>
+      </div>
+      <div>
+        <label>Até</label><input type="date" id="endDate"/>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="statusSel">
+          <option value="">Todos</option>
+          <option>OK</option><option>Atenção</option><option>Risco</option>
+        </select>
+      </div>
+      <div>
+        <label>Atleta</label>
+        <select id="athleteSel"><option value="">Todos</option></select>
+      </div>
+      <div style="flex:1; min-width:220px">
+        <label>Buscar por nome</label><input type="text" id="q" placeholder="Digite para filtrar…"/>
+      </div>
+      <div>
+        <button class="btn" id="apply">Aplicar</button>
+        <button class="btn" id="clear">Limpar</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Atleta</th><th>Modalidade</th><th>Sessões</th><th>Nota média</th>
+            <th>Sent. antes</th><th>Sent. depois</th><th>Δ humor</th><th>Freq./semana</th><th>Status</th><th>Flags</th>
+          </tr>
+        </thead>
+        <tbody id="insBody"></tbody>
+      </table>
+    </div>
+
+    <div class="drill">
+      <div class="box insights-box" id="insBox" style="display:none">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div>
+            <div class="sub">Insights do atleta</div>
+            <h3 id="who" style="margin:4px 0 0 0"></h3>
+          </div>
+          <div class="sub" id="count"></div>
+        </div>
+        <div id="insList" style="margin-top:8px"></div>
+      </div>
+
+      <div class="box" id="drillBox" style="display:none; margin-top:10px">
+        <div style="overflow:auto; max-height:55vh">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th><th>Modalidade</th><th>Duração</th><th>Intensidade</th><th>Mente</th><th>Lesão</th>
+                <th>Nota</th><th>Sent. antes</th><th>Sent. depois</th>
+              </tr>
+            </thead>
+            <tbody id="baseBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <script>
+    // LIMIARES POSITIVOS
+    const POS_THRESH = { freq: 0.5, delta: 0.5, nota: 4.0 };
+
+    let INSIGHTS=[], BASE=[];
+    const $ = (id)=>document.getElementById(id);
+    const insBody = $("insBody"), baseBody = $("baseBody"), err = $("err");
+
+    function pill(status){
+      if(status==="OK") return '<span class="status ok">OK</span>';
+      if(status==="Atenção") return '<span class="status att">Atenção</span>';
+      return '<span class="status risk">Risco</span>';
+    }
+    function fmt(x,d=2){ if(x==null||isNaN(x)) return "—"; return Number(x).toFixed(d).replace(".",","); }
+    function parseISO(d){ if(!d) return null; const t=new Date(d); return isNaN(+t)?null:t; }
+    function inRange(iso,sd,ed){ const t=parseISO(iso); if(!t) return true; if(sd && t<sd) return false; if(ed && t>ed) return false; return true; }
+
+    function negativeChip(text){ return `<span class="chip">${text}</span>`; }
+    function positiveChip(text){ return `<span class="chip-pos">${text}</span>`; }
+
+    // Monta flags negativas + positivas
+    function buildAllFlags(r){
+      const neg = (r.flags||"").split(",").map(s=>s.trim()).filter(Boolean);
+      const pos = [];
+      if (r.freq_semana!=null && r.freq_semana >= POS_THRESH.freq) pos.push("boa consistência");
+      if (r.delta_sent!=null && r.delta_sent >= POS_THRESH.delta) pos.push("boa resposta emocional");
+      if (r.media_nota!=null && r.media_nota >= POS_THRESH.nota) pos.push("nota boa");
+      return {neg, pos};
+    }
+
+    function renderFlags(r){
+      const {neg, pos} = buildAllFlags(r);
+      if (neg.length===0 && pos.length===0) return negativeChip("Sem alertas");
+      return [
+        ...neg.map(negativeChip),
+        ...pos.map(positiveChip)
+      ].join(" ");
+    }
+
+    function athletesList(){ return [...new Set(INSIGHTS.map(r=>r.Atleta))].sort(); }
+
+    function kpis(rows){
+      const atletas = rows.length;
+      const sessoes = rows.reduce((acc,r)=>acc+(r.sessoes||0),0);
+      const nota = rows.reduce((acc,r)=>acc+(r.media_nota||0),0) / (rows.filter(r=>r.media_nota!=null).length||1);
+      const delta = rows.reduce((acc,r)=>acc+(r.delta_sent||0),0) / (rows.filter(r=>r.delta_sent!=null).length||1);
+      $("kpiAtletas").textContent = atletas;
+      $("kpiSessoes").textContent = sessoes;
+      $("kpiNota").textContent = fmt(nota,2);
+      $("kpiDelta").textContent = fmt(delta,2);
+    }
+
+    function apply(){
+      const sd=$("startDate").value?new Date($("startDate").value):null;
+      const ed=$("endDate").value?new Date($("endDate").value):null;
+      const st=$("statusSel").value;
+      const who=$("athleteSel").value;
+      const q=($("q").value||"").toLowerCase();
+
+      let rows = INSIGHTS.filter(r=>{
+        const okQ = !q || (r.Atleta||"").toLowerCase().includes(q);
+        const okS = !st || r.status===st;
+        const okA = !who || r.Atleta===who;
+        return okQ && okS && okA;
+      });
+
+      kpis(rows);
+
+      insBody.innerHTML="";
+      rows.forEach(r=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td><a href="#" data-ath="${r.Atleta}">${r.Atleta}</a></td>
+          <td>${r.modalidade_treino||"—"}</td>
+          <td>${r.sessoes||0}</td>
+          <td>${fmt(r.media_nota,2)}</td>
+          <td>${fmt(r.media_sent_antes,2)}</td>
+          <td>${fmt(r.media_sent_depois,2)}</td>
+          <td>${fmt(r.delta_sent,2)}</td>
+          <td>${fmt(r.freq_semana,2)}</td>
+          <td>${pill(r.status)}</td>
+          <td>${renderFlags(r)}</td>
+        `;
+        insBody.appendChild(tr);
+      });
+
+      insBody.querySelectorAll("a[data-ath]").forEach(a=>{
+        a.addEventListener("click",(e)=>{ e.preventDefault();
+          showDrill(a.getAttribute("data-ath"), sd, ed);
+        });
+      });
+    }
+
+    function buildNarrative(r){
+      const out=[];
+      if(r.freq_semana<0.25) out.push(`Baixa consistência (${fmt(r.freq_semana,2)}/semana). Priorizar 2x/sem.`);
+      else if(r.freq_semana<0.5) out.push(`Consistência abaixo do ideal (${fmt(r.freq_semana,2)}/semana).`);
+      else out.push(`Boa consistência (${fmt(r.freq_semana,2)}/semana).`);
+
+      if(r.delta_sent<=0) out.push(`Humor não melhora após treino (Δ ${fmt(r.delta_sent,2)}).`);
+      else if(r.delta_sent>=0.5) out.push(`Boa resposta emocional pós‑treino (Δ ${fmt(r.delta_sent,2)}).`);
+
+      if(r.media_nota<3) out.push(`Qualidade percebida baixa (nota média ${fmt(r.media_nota,2)}).`);
+      else if(r.media_nota>=4) out.push(`Qualidade percebida boa (nota média ${fmt(r.media_nota,2)}).`);
+
+      if(r.sessoes<=2) out.push(`Poucas sessões registradas (${r.sessoes}).`);
+      if(r.modalidade_treino) out.push(`Foco principal em ${r.modalidade_treino}.`);
+      return out;
+    }
+
+    function showDrill(ath, sd, ed){
+      const row = INSIGHTS.find(x=>x.Atleta===ath);
+      $("insBox").style.display="block";
+      $("who").textContent=ath;
+
+      const narr = buildNarrative(row);
+      const {neg, pos} = buildAllFlags(row);
+      const chips = [
+        ...neg.map(negativeChip),
+        ...pos.map(positiveChip)
+      ];
+      $("insList").innerHTML = [...narr.map(m=>`<span class="chip">${m}</span>`), ...chips].join(" ");
+
+      const key = ath.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");
+      const sessions = BASE.filter(r=>{
+        const root = (r.usuario||"").split("@")[0].replaceAll("."," ").toLowerCase();
+        const norm = root.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");
+        return norm===key && inRange(r.data_treino, sd, ed);
+      }).sort((a,b)=>{
+        const ta = a.data_treino?+new Date(a.data_treino):0;
+        const tb = b.data_treino?+new Date(b.data_treino):0;
+        return tb-ta;
+      });
+
+      $("count").textContent = sessions.length+" sessão(ões)";
+      $("drillBox").style.display="block";
+      baseBody.innerHTML="";
+      sessions.forEach(s=>{
+        const tr=document.createElement("tr");
+        const d = s.data_treino ? String(s.data_treino).substring(0,10) : "—";
+        tr.innerHTML = `
+          <td>${d}</td><td>${s.modalidade||"—"}</td><td>${s.duracao||"—"}</td><td>${s.intensidade||"—"}</td>
+          <td>${s.mente||"—"}</td><td>${s.lesao||"—"}</td><td>${s.nota??"—"}</td>
+          <td>${s.sent_antes??"—"}</td><td>${s.sent_depois??"—"}</td>`;
+        baseBody.appendChild(tr);
+      });
+    }
+
+    function populateSelectors(){
+      const sel=$("athleteSel");
+      sel.innerHTML='<option value="">Todos</option>';
+      athletesList().forEach(a=>{
+        const o=document.createElement("option"); o.value=a; o.textContent=a; sel.appendChild(o);
+      });
+    }
+
+    $("apply").addEventListener("click",(e)=>{e.preventDefault(); apply();});
+    $("clear").addEventListener("click",(e)=>{e.preventDefault();
+      ["startDate","endDate","statusSel","athleteSel","q"].forEach(id=>{ const el=$(id); el.value = (el.tagName==="SELECT")?"":""; });
+      $("insBox").style.display="none"; $("drillBox").style.display="none"; baseBody.innerHTML=""; apply();
+    });
+
+    async function boot(){
+      try{
+        const [a,b] = await Promise.all([ fetch("insights.json"), fetch("base.json") ]);
+        if(!a.ok||!b.ok) throw new Error("Não encontrei insights.json/base.json na mesma pasta do HTML.");
+        INSIGHTS = await a.json(); BASE = await b.json();
+        populateSelectors(); apply();
+      }catch(e){
+        err.style.display="block"; err.textContent=e.message; console.error(e);
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>
